@@ -36,38 +36,62 @@ package com.realworld.android.petsave.common.data.di
 
 import com.realworld.android.petsave.common.data.api.ApiConstants
 import com.realworld.android.petsave.common.data.api.PetFinderApi
+import com.realworld.android.petsave.common.data.api.interceptors.AuthenticationInterceptor
 import com.realworld.android.petsave.common.data.api.interceptors.LoggingInterceptor
+import com.realworld.android.petsave.common.data.api.interceptors.NetworkStatusInterceptor
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.scopes.ActivityScoped
+import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import javax.inject.Singleton
 
+@Module
+@InstallIn(SingletonComponent::class)
 object ApiModule {
 
-  fun provideApi(builder: Retrofit.Builder): PetFinderApi {
-    return builder
-        .build()
-        .create(PetFinderApi::class.java)
-  }
+    @ActivityScoped
+    @Provides
+    fun provideApi(builder: Retrofit.Builder): PetFinderApi {
+        return builder
+            .build()
+            .create(PetFinderApi::class.java)
+    }
 
-  fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit.Builder {
-    return Retrofit.Builder()
-        .baseUrl(ApiConstants.BASE_ENDPOINT)
-        .client(okHttpClient)
-        .addConverterFactory(MoshiConverterFactory.create())
-  }
+    @Singleton
+    @Provides
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit.Builder {
+        return Retrofit.Builder()
+            .baseUrl(ApiConstants.BASE_ENDPOINT)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+    }
 
-  fun provideOkHttpClient(httpLoggingInterceptor: HttpLoggingInterceptor): OkHttpClient {
-    return OkHttpClient.Builder()
-        .addInterceptor(httpLoggingInterceptor)
-        .build()
-  }
+    @Singleton
+    @Provides
+    fun provideOkHttpClient(
+        httpLoggingInterceptor: HttpLoggingInterceptor,
+        authenticationInterceptor: AuthenticationInterceptor,
+        networkStatusInterceptor: NetworkStatusInterceptor
+    ): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(networkStatusInterceptor) // A
+            .addInterceptor(authenticationInterceptor) // C
+            .addInterceptor(httpLoggingInterceptor) // B
+            .build()
+    }
 
-  fun provideHttpLoggingInterceptor(loggingInterceptor: LoggingInterceptor): HttpLoggingInterceptor {
-    val interceptor = HttpLoggingInterceptor(loggingInterceptor)
+    @Singleton
+    @Provides
+    fun provideHttpLoggingInterceptor(loggingInterceptor: LoggingInterceptor): HttpLoggingInterceptor {
+        val interceptor = HttpLoggingInterceptor(loggingInterceptor)
 
-    interceptor.level = HttpLoggingInterceptor.Level.BODY
+        interceptor.level = HttpLoggingInterceptor.Level.BODY
 
-    return interceptor
-  }
+        return interceptor
+    }
 }

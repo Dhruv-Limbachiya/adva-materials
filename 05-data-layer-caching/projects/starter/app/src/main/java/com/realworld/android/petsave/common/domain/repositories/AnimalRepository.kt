@@ -34,4 +34,15 @@
 
 package com.realworld.android.petsave.common.domain.repositories
 
-interface AnimalRepository
+import com.realworld.android.petsave.common.domain.model.animal.Animal
+import com.realworld.android.petsave.common.domain.model.animal.details.AnimalWithDetails
+import com.realworld.android.petsave.common.domain.model.pagination.PaginatedAnimals
+import io.reactivex.Flowable
+
+interface AnimalRepository {
+    fun getAnimals(): Flowable<List<Animal>>
+
+    suspend fun storeAnimals(animals: List<AnimalWithDetails>)
+
+    suspend fun requestMoreAnimals(pageToLoad: Int, numberOfItems: Int): PaginatedAnimals
+}

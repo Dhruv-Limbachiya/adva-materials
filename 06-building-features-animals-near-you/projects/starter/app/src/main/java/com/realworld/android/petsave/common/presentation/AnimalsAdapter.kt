@@ -46,15 +46,12 @@ import com.realworld.android.petsave.databinding.RecyclerViewAnimalItemBinding
 class AnimalsAdapter: ListAdapter<UIAnimal, AnimalsAdapter.AnimalsViewHolder>(ITEM_COMPARATOR) {
 
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AnimalsViewHolder {
-    val binding = RecyclerViewAnimalItemBinding
-        .inflate(LayoutInflater.from(parent.context), parent, false)
-
+    val binding = RecyclerViewAnimalItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
     return AnimalsViewHolder(binding)
   }
 
   override fun onBindViewHolder(holder: AnimalsViewHolder, position: Int) {
     val item: UIAnimal = getItem(position)
-
     holder.bind(item)
   }
 
@@ -70,13 +67,7 @@ class AnimalsAdapter: ListAdapter<UIAnimal, AnimalsAdapter.AnimalsViewHolder>(IT
 }
 
 private val ITEM_COMPARATOR = object : DiffUtil.ItemCallback<UIAnimal>() {
-  override fun areItemsTheSame(oldItem: UIAnimal, newItem: UIAnimal): Boolean {
-    // TODO: compare identity
-    return true
-  }
+  override fun areItemsTheSame(oldItem: UIAnimal, newItem: UIAnimal) = oldItem.id == newItem.id
 
-  override fun areContentsTheSame(oldItem: UIAnimal, newItem: UIAnimal): Boolean {
-    // TODO: compare contents
-    return true
-  }
+  override fun areContentsTheSame(oldItem: UIAnimal, newItem: UIAnimal) = oldItem == newItem
 }

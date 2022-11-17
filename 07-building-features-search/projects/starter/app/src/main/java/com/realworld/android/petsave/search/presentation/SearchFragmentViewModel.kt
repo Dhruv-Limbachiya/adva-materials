@@ -42,6 +42,7 @@ import com.realworld.android.petsave.common.domain.model.pagination.Pagination
 import com.realworld.android.petsave.common.presentation.model.mappers.UiAnimalMapper
 import com.realworld.android.petsave.common.utils.DispatchersProvider
 import com.realworld.android.petsave.common.utils.createExceptionHandler
+import com.realworld.android.petsave.search.domain.usecases.GetSearchFilters
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.BehaviorSubject
@@ -50,79 +51,100 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class SearchFragmentViewModel @Inject constructor(
     private val uiAnimalMapper: UiAnimalMapper,
-    private val compositeDisposable: CompositeDisposable
-): ViewModel() {
+    private val compositeDisposable: CompositeDisposable,
+    private val dispatchersProvider: DispatchersProvider,
+    private val getSearchFilters: GetSearchFilters
+) : ViewModel() {
 
-  private var currentPage = 0
+    private var currentPage = 0
 
-  private val _state = MutableStateFlow(SearchViewState())
-  private val querySubject = BehaviorSubject.create<String>()
-  private val ageSubject = BehaviorSubject.createDefault("")
-  private val typeSubject = BehaviorSubject.createDefault("")
+    private val _state = MutableStateFlow(SearchViewState())
+    private val querySubject = BehaviorSubject.create<String>()
+    private val ageSubject = BehaviorSubject.createDefault("")
+    private val typeSubject = BehaviorSubject.createDefault("")
 
 
-  val state: StateFlow<SearchViewState> = _state.asStateFlow()
+    val state: StateFlow<SearchViewState> = _state.asStateFlow()
 
-  fun onEvent(event: SearchEvent) {
-    when(event) {
-      is SearchEvent.PrepareForSearch -> prepareForSearch()
-      else -> onSearchParametersUpdate(event)
+    fun onEvent(event: SearchEvent) {
+        when (event) {
+            is SearchEvent.PrepareForSearch -> prepareForSearch()
+            else -> onSearchParametersUpdate(event)
+        }
     }
-  }
 
-  private fun onSearchParametersUpdate(event: SearchEvent) {
-    // Add code here
-  }
-
-  private fun prepareForSearch() {
-    // Add code here
-  }
-
-  private fun createExceptionHandler(message: String): CoroutineExceptionHandler {
-    return viewModelScope.createExceptionHandler(message) {
-      onFailure(it)
+    private fun onSearchParametersUpdate(event: SearchEvent) {
+        // Add code here
     }
-  }
 
-  private fun setSearchingState() {
-    _state.update { oldState -> oldState.updateToSearching() }
-  }
-
-  private fun setNoSearchQueryState() {
-    _state.update { oldState -> oldState.updateToNoSearchQuery() }
-  }
-
-  private fun onAnimalList(animals: List<Animal>) {
-    _state.update { oldState ->
-      oldState.updateToHasSearchResults(animals.map { uiAnimalMapper.mapToView(it) })
+    private fun prepareForSearch() {
+        // Add code here
+        loadFilterValues()
     }
-  }
 
-  private fun resetPagination() {
-    currentPage = 0
-  }
-
-  private fun onPaginationInfoObtained(pagination: Pagination) {
-    currentPage = pagination.currentPage
-  }
-
-  private fun onFailure(throwable: Throwable) {
-    _state.update { oldState ->
-      if (throwable is NoMoreAnimalsException) {
-        oldState.updateToNoResultsAvailable()
-      } else {
-        oldState.updateToHasFailure(throwable)
-      }
+    private fun loadFilterValues() {
+        val exceptionHandler = createExceptionHandler("Failed to get filter values.")
+        viewModelScope.launch(exceptionHandler) {
+            val (ages, types) = withContext(dispatchersProvider.io()) {
+                getSearchFilters()
+            }
+            updateStateWithSearchFilter(ages, types);
+        }
     }
-  }
 
-  override fun onCleared() {
-    super.onCleared()
-    compositeDisposable.clear()
-  }
+    private fun updateStateWithSearchFilter(ages: List<String>, types: List<String>) {
+        _state.value = state.value.updateToReadyToSearch(ages, types)
+    }
+
+    private fun createExceptionHandler(message: String): CoroutineExceptionHandler {
+        return viewModelScope.createExceptionHandler(message) {
+            onFailure(it)
+        }
+    }
+
+    private fun setSearchingState() {
+        _state.update { oldState -> oldState.updateToSearching() }
+    }
+
+    private fun setNoSearchQueryState() {
+        _state.update { oldState -> oldState.updateToNoSearchQuery() }
+    }
+
+    private fun onAnimalList(animals: List<Animal>) {
+        _state.update { oldState ->
+            oldState.updateToHasSearchResults(animals.map { uiAnimalMapper.mapToView(it) })
+        }
+    }
+
+    private fun resetPagination() {
+        currentPage = 0
+    }
+
+    private fun onPaginationInfoObtained(pagination: Pagination) {
+        currentPage = pagination.currentPage
+    }
+
+    private fun onFailure(throwable: Throwable) {
+        _state.update { oldState ->
+            if (throwable is NoMoreAnimalsException) {
+                oldState.updateToNoResultsAvailable()
+            } else {
+                oldState.updateToHasFailure(throwable)
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        compositeDisposable.clear()
+    }
 }
+
+

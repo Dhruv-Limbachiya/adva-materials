@@ -40,8 +40,7 @@ import androidx.recyclerview.widget.RecyclerView
 abstract class InfiniteScrollListener(
     private val layoutManager: GridLayoutManager,
     private val pageSize: Int
-) :
-    RecyclerView.OnScrollListener() {
+) : RecyclerView.OnScrollListener() {
 
   override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
     super.onScrolled(recyclerView, dx, dy)

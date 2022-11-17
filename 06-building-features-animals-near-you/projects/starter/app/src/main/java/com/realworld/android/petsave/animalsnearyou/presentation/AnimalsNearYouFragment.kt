@@ -38,10 +38,14 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
+import com.google.android.material.snackbar.Snackbar
+import com.realworld.android.petsave.R
 import com.realworld.android.petsave.common.presentation.AnimalsAdapter
+import com.realworld.android.petsave.common.presentation.Event
 import com.realworld.android.petsave.databinding.FragmentAnimalsNearYouBinding
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -74,13 +78,15 @@ class AnimalsNearYouFragment : Fragment() {
         requestInitialAnimalList()
     }
 
-    private fun requestInitialAnimalList() {
-        viewModel.onEvent(AnimalsNearYouEvent.RequestInitialAnimalsList)
-    }
-
     private fun setupUI() {
         val adapter = createAdapter();
         setRecyclerView(adapter)
+        observeViewStateUpdates(adapter)
+    }
+
+
+    private fun requestInitialAnimalList() {
+        viewModel.onEvent(AnimalsNearYouEvent.RequestInitialAnimalsList)
     }
 
     private fun createAdapter(): AnimalsAdapter = AnimalsAdapter()
@@ -90,7 +96,63 @@ class AnimalsNearYouFragment : Fragment() {
             layoutManager = GridLayoutManager(requireContext(), ITEMS_PER_ROW)
             adapter = animalsAdapter
             setHasFixedSize(true)
+            addOnScrollListener(createInfiniteScrollListener(layoutManager as GridLayoutManager))
         }
+    }
+
+    private fun createInfiniteScrollListener(layoutManager: GridLayoutManager) =
+        object : InfiniteScrollListener(
+            layoutManager,
+            AnimalsNearYouFragmentViewModel.UI_PAGE_SIZE
+        ) {
+            override fun loadMoreItems() {
+                requestMoreAnimals()
+            }
+
+            override fun isLastPage(): Boolean {
+              return viewModel.isLastPage
+            }
+
+            override fun isLoading(): Boolean {
+               return viewModel.isLoadingMoreAnimals
+            }
+        }
+
+    private fun requestMoreAnimals() {
+        viewModel.onEvent(AnimalsNearYouEvent.RequestMoreAnimal)
+    }
+
+    private fun observeViewStateUpdates(adapter: AnimalsAdapter) {
+        viewModel.state.observe(viewLifecycleOwner) { animalNearYouViewState ->
+            animalNearYouViewState?.let {
+                updateScreenState(it, adapter)
+            }
+        }
+    }
+
+    private fun updateScreenState(viewState: AnimalsNearYouViewState, adapter: AnimalsAdapter) {
+        binding.progressBar.isVisible = viewState.loading
+        adapter.submitList(viewState.animals)
+        handleNoMoreAnimalsNearBy(viewState.noMoreAnimalsNearBy)
+        handleFailure(viewState.failure)
+    }
+
+    private fun handleFailure(failure: Event<Throwable>?) {
+        val unhandledFailure = failure?.getContentIfNotHandled() ?: return
+        val fallbackMessage = getString(R.string.an_error_occurred)
+        val snackBarMessage = if (!unhandledFailure.message.isNullOrEmpty()) {
+            unhandledFailure.message!!
+        } else {
+            fallbackMessage
+        }
+
+        if (snackBarMessage.isNotEmpty()) {
+            Snackbar.make(requireView(), snackBarMessage, Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handleNoMoreAnimalsNearBy(noMoreAnimalsNearBy: Boolean) {
+
     }
 
     override fun onDestroyView() {

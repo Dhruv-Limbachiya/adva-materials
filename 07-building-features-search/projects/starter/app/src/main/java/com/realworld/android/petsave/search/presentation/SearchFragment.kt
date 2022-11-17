@@ -38,6 +38,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView.OnItemClickListener
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
+import androidx.appcompat.widget.SearchView.OnQueryTextListener
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -50,104 +54,163 @@ import com.realworld.android.petsave.R
 import com.realworld.android.petsave.common.presentation.AnimalsAdapter
 import com.realworld.android.petsave.common.presentation.Event
 import com.realworld.android.petsave.databinding.FragmentSearchBinding
+import com.realworld.android.petsave.search.domain.usecases.GetSearchFilters
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class SearchFragment : Fragment() {
 
-  companion object {
-    private const val ITEMS_PER_ROW = 2
-  }
-
-  private val binding get() = _binding!!
-  private var _binding: FragmentSearchBinding? = null
-
-  private val viewModel: SearchFragmentViewModel by viewModels()
-
-  override fun onCreateView(
-      inflater: LayoutInflater,
-      container: ViewGroup?,
-      savedInstanceState: Bundle?
-  ): View {
-    _binding = FragmentSearchBinding.inflate(inflater, container, false)
-
-    return binding.root
-  }
-
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-
-    setupUI()
-  }
-
-  private fun setupUI() {
-    val adapter = createAdapter()
-    setupRecyclerView(adapter)
-    subscribeToViewStateUpdates(adapter)
-  }
-
-  private fun createAdapter(): AnimalsAdapter {
-    return AnimalsAdapter()
-  }
-
-  private fun setupRecyclerView(searchAdapter: AnimalsAdapter) {
-    binding.searchRecyclerView.apply {
-      adapter = searchAdapter
-      layoutManager = GridLayoutManager(requireContext(), ITEMS_PER_ROW)
-      setHasFixedSize(true)
+    companion object {
+        private const val ITEMS_PER_ROW = 2
     }
-  }
 
-  private fun subscribeToViewStateUpdates(searchAdapter: AnimalsAdapter) {
-    viewLifecycleOwner.lifecycleScope.launch {
-      viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-        viewModel.state.collect {
-          updateScreenState(it, searchAdapter)
+    private val binding get() = _binding!!
+    private var _binding: FragmentSearchBinding? = null
+
+    private val viewModel: SearchFragmentViewModel by viewModels()
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentSearchBinding.inflate(inflater, container, false)
+
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupUI()
+        prepareForSearch()
+    }
+
+    private fun setupUI() {
+        val adapter = createAdapter()
+        setupRecyclerView(adapter)
+        subscribeToViewStateUpdates(adapter)
+    }
+
+    private fun createAdapter(): AnimalsAdapter {
+        return AnimalsAdapter()
+    }
+
+    private fun setupRecyclerView(searchAdapter: AnimalsAdapter) {
+        binding.searchRecyclerView.apply {
+            adapter = searchAdapter
+            layoutManager = GridLayoutManager(requireContext(), ITEMS_PER_ROW)
+            setHasFixedSize(true)
         }
-      }
-    }
-  }
-
-  private fun updateScreenState(newState: SearchViewState, searchAdapter: AnimalsAdapter) {
-    val (
-        inInitialState,
-        searchResults,
-        ageFilterValues,
-        typeFilterValues,
-        searchingRemotely,
-        noResultsState,
-        failure
-    ) = newState
-
-    updateInitialStateViews(inInitialState)
-
-    handleFailures(failure)
-  }
-
-  private fun updateInitialStateViews(inInitialState: Boolean) {
-    binding.initialSearchImageView.isVisible = inInitialState
-    binding.initialSearchText.isVisible = inInitialState
-  }
-
-  private fun handleFailures(failure: Event<Throwable>?) {
-    val unhandledFailure = failure?.getContentIfNotHandled() ?: return
-
-    val fallbackMessage = getString(R.string.an_error_occurred)
-    val snackbarMessage = if (unhandledFailure.message.isNullOrEmpty()) {
-      fallbackMessage
-    }
-    else {
-      unhandledFailure.message!!
     }
 
-    if (snackbarMessage.isNotEmpty()) {
-      Snackbar.make(requireView(), snackbarMessage, Snackbar.LENGTH_SHORT).show()
+    private fun prepareForSearch() {
+        setupSearchViewListener()
+        setupFiltersListeners()
+        viewModel.onEvent(SearchEvent.PrepareForSearch)
     }
-  }
 
-  override fun onDestroyView() {
-    super.onDestroyView()
-    _binding = null
-  }
+    private fun setupSearchViewListener() {
+        val searchView = binding.searchWidget.search
+
+        searchView.setOnQueryTextListener(object : OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                query?.let {
+                    viewModel.onEvent(SearchEvent.QueryInput(it))
+                    searchView.clearFocus()
+                    return true
+                }
+                return false
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                newText?.let {
+                    viewModel.onEvent(SearchEvent.QueryInput(it))
+
+                }
+                return true
+            }
+        })
+    }
+
+    private fun setupFiltersListeners() {
+        with(binding.searchWidget) {
+            setFilterListenerFor(age) { item ->
+                viewModel.onEvent(SearchEvent.AgeValueSelected(item))
+            }
+
+            setFilterListenerFor(type) { item ->
+                viewModel.onEvent(SearchEvent.TypeValueSelected(item))
+            }
+        }
+    }
+
+    private fun setFilterValues(
+        filter: AutoCompleteTextView,
+        filterValues: List<String>?
+    ) {
+        if (filterValues.isNullOrEmpty()) return
+        filter.setAdapter(createFilterAdapter(filterValues))
+        filter.setText(GetSearchFilters.NO_FILTER_ADDED, false)
+    }
+
+    private fun createFilterAdapter(adapterValues: List<String>): ArrayAdapter<String> {
+        return ArrayAdapter(requireContext(), R.layout.dropdown_menu_popup_item, adapterValues)
+    }
+
+
+    private fun setFilterListenerFor(view: AutoCompleteTextView, block: (item: String) -> Unit) {
+        view.onItemClickListener = OnItemClickListener { parent, _, position, _ ->
+            parent?.let {
+                block(it.adapter.getItem(position) as String)
+            }
+        }
+    }
+
+    private fun subscribeToViewStateUpdates(searchAdapter: AnimalsAdapter) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.state.collect {
+                    updateScreenState(it, searchAdapter)
+                }
+            }
+        }
+    }
+
+    private fun updateScreenState(newState: SearchViewState, searchAdapter: AnimalsAdapter) {
+        val (inInitialState, searchResults, ageFilterValues, typeFilterValues, searchingRemotely, noResultsState, failure) = newState
+
+        updateInitialStateViews(inInitialState)
+
+        with(binding.searchWidget) {
+            setFilterValues(age, ageFilterValues.getContentIfNotHandled())
+            setFilterValues(type, typeFilterValues.getContentIfNotHandled())
+        }
+
+        handleFailures(failure)
+    }
+
+    private fun updateInitialStateViews(inInitialState: Boolean) {
+        binding.initialSearchImageView.isVisible = inInitialState
+        binding.initialSearchText.isVisible = inInitialState
+    }
+
+    private fun handleFailures(failure: Event<Throwable>?) {
+        val unhandledFailure = failure?.getContentIfNotHandled() ?: return
+
+        val fallbackMessage = getString(R.string.an_error_occurred)
+        val snackbarMessage = if (unhandledFailure.message.isNullOrEmpty()) {
+            fallbackMessage
+        } else {
+            unhandledFailure.message!!
+        }
+
+        if (snackbarMessage.isNotEmpty()) {
+            Snackbar.make(requireView(), snackbarMessage, Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
 }

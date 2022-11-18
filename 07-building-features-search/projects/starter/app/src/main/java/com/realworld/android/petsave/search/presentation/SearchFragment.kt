@@ -180,6 +180,7 @@ class SearchFragment : Fragment() {
         val (inInitialState, searchResults, ageFilterValues, typeFilterValues, searchingRemotely, noResultsState, failure) = newState
 
         updateInitialStateViews(inInitialState)
+        searchAdapter.submitList(searchResults)
 
         with(binding.searchWidget) {
             setFilterValues(age, ageFilterValues.getContentIfNotHandled())

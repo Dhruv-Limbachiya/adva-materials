@@ -38,7 +38,10 @@ import com.realworld.android.petsave.common.domain.model.animal.Animal
 import com.realworld.android.petsave.common.domain.model.animal.details.Age
 import com.realworld.android.petsave.common.domain.model.animal.details.AnimalWithDetails
 import com.realworld.android.petsave.common.domain.model.pagination.PaginatedAnimals
+import com.realworld.android.petsave.search.domain.model.SearchParameters
+import com.realworld.android.petsave.search.domain.model.SearchResults
 import io.reactivex.Flowable
+import java.util.concurrent.Flow
 
 interface AnimalRepository {
   fun getAnimals(): Flowable<List<Animal>>
@@ -46,6 +49,7 @@ interface AnimalRepository {
   suspend fun storeAnimals(animals: List<AnimalWithDetails>)
   suspend fun getAnimalTypes(): List<String>
   fun getAnimalAges(): List<Age>
+  fun searchCachedAnimalsBy(parameters: SearchParameters) : Flowable<SearchResults>
 
 //  TODO: Uncomment for remote search
 //  suspend fun searchAnimalsRemotely(
